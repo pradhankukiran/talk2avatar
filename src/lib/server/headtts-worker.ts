@@ -1,9 +1,11 @@
 import path from "node:path";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 
-type HeadTtsDevice = "webgpu" | "cpu" | "wasm";
+type HeadTtsDevice = "cpu";
+const requireFromHere = createRequire(import.meta.url);
 
 type WorkerMessage = {
   type?: string;
@@ -79,45 +81,32 @@ function previewText(text: string, max = 80): string {
   return `${normalized.slice(0, max)}…`;
 }
 
-function parseDevicePriority(): HeadTtsDevice[] {
-  const value = process.env.HEADTTS_DEVICE_PRIORITY?.trim();
-  const defaultDevices: HeadTtsDevice[] = ["cpu"];
-  if (!value) return defaultDevices;
-
-  const parsed = value
-    .split(",")
-    .map((part) => part.trim().toLowerCase())
-    .filter((part): part is HeadTtsDevice => (
-      part === "webgpu" || part === "cpu" || part === "wasm"
-    ));
-
-  let unique = Array.from(new Set(parsed));
-  if (unique.length === 0) return defaultDevices;
-
-  const forceWebGpu = process.env.HEADTTS_FORCE_WEBGPU === "1";
-  if (!forceWebGpu && unique.includes("webgpu")) {
-    console.warn(
-      "[HeadTTS] Skipping 'webgpu' device in Node runtime; this backend currently supports cpu/cuda only. Set HEADTTS_FORCE_WEBGPU=1 to force attempts."
-    );
-    unique = unique.filter((device) => device !== "webgpu");
-  }
-
-  if (!unique.includes("cpu")) unique.push("cpu");
-  return unique.length > 0 ? unique : defaultDevices;
-}
-
 function withRuntimeHint(message: string): string {
   const nodeVersion = process.versions.node;
+  if (message.includes("worker-tts.mjs")) {
+    return `${message} Missing HeadTTS worker file in deployment bundle. Add Next.js output file tracing includes for @met4citizen/headtts modules.`;
+  }
   if (message.includes("Cannot find package") && message.includes("@huggingface/transformers")) {
     return `${message} HeadTTS may have created a local cache-only folder that shadows the real transformers package. This build now pins an explicit transformers.node.mjs path.`;
   }
-  if (message.includes("ERR_DLOPEN_FAILED")) {
+  if (message.includes("ERR_DLOPEN_FAILED") || message.includes("did not self-register")) {
     return `${message} Native addon load failed for onnxruntime-node on Node ${nodeVersion}. Reinstall dependencies for this runtime and verify compatible prebuilt binaries are available.`;
+  }
+  if (message.includes("ENOENT") && message.includes("dictionaries")) {
+    return `${message} Dictionary file path is missing in runtime bundle. Ensure the server points to '/public/headtts/dictionaries' and file tracing includes it.`;
   }
   if (message.includes("Importing modules failed")) {
     return `${message} Check the preceding 'HeadTTS Worker' error log for the specific root cause (module resolution vs native addon load).`;
   }
   return message;
+}
+
+function normalizeBundledPath(candidate: string): string {
+  const prefix = "(rsc)/";
+  if (candidate.startsWith(prefix)) {
+    return path.join(process.cwd(), candidate.slice(prefix.length));
+  }
+  return candidate;
 }
 
 function resolveTransformersModule(): string {
@@ -152,20 +141,46 @@ function resolveTransformersModule(): string {
   return "@huggingface/transformers";
 }
 
-function makeConnectData(device: HeadTtsDevice) {
-  const pkgRoot = path.join(process.cwd(), "node_modules", "@met4citizen", "headtts");
+function resolveHeadTtsPackageRoot(): string {
+  try {
+    const pkgJson = requireFromHere.resolve("@met4citizen/headtts/package.json");
+    return normalizeBundledPath(path.dirname(pkgJson));
+  } catch {
+    return path.join(process.cwd(), "node_modules", "@met4citizen", "headtts");
+  }
+}
+
+function resolveDictionaryPath(pkgRoot: string): string {
+  const candidates = [
+    path.join(process.cwd(), "public", "headtts", "dictionaries"),
+    path.join(pkgRoot, "dictionaries"),
+    path.join(process.cwd(), "node_modules", "@met4citizen", "headtts", "dictionaries"),
+  ].map(normalizeBundledPath);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "en-us.txt"))) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
+}
+
+function makeConnectData() {
+  const pkgRoot = resolveHeadTtsPackageRoot();
+  const dictionaryPath = resolveDictionaryPath(pkgRoot);
   const transformersModule = resolveTransformersModule();
 
   return {
     transformersModule,
     model: "onnx-community/Kokoro-82M-v1.0-ONNX-timestamped",
     dtype: "q4",
-    device,
+    device: "cpu",
     styleDim: 256,
     frameRate: 40,
     audioSampleRate: 24000,
     languages: ["en-us"],
-    dictionaryPath: path.join(pkgRoot, "dictionaries"),
+    dictionaryPath,
     voicePath: path.join(process.cwd(), "public", "headtts", "voices"),
     voices: ["af_bella"],
     deltaStart: -10,
@@ -175,20 +190,36 @@ function makeConnectData(device: HeadTtsDevice) {
 }
 
 function getWorkerPath(): string {
-  return path.join(
-    process.cwd(),
-    "node_modules",
-    "@met4citizen",
-    "headtts",
-    "modules",
-    "worker-tts.mjs"
+  const pkgRoot = resolveHeadTtsPackageRoot();
+  const candidates = [
+    path.join(process.cwd(), "public", "headtts", "modules", "worker-tts.mjs"),
+    path.join(pkgRoot, "modules", "worker-tts.mjs"),
+    path.join(
+      process.cwd(),
+      "node_modules",
+      "@met4citizen",
+      "headtts",
+      "modules",
+      "worker-tts.mjs"
+    ),
+  ].map(normalizeBundledPath);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Cannot find module '${candidates[0]}'`
   );
 }
 
-async function connectWorkerForDevice(device: HeadTtsDevice): Promise<void> {
+async function connectWorker(): Promise<void> {
   const state = getState();
   const workerPath = getWorkerPath();
   const startedAt = Date.now();
+  const device: HeadTtsDevice = "cpu";
 
   debugLog("connect attempt started", {
     device,
@@ -201,7 +232,7 @@ async function connectWorkerForDevice(device: HeadTtsDevice): Promise<void> {
     const connectTimeout = setTimeout(() => {
       if (settled) return;
       settled = true;
-      reject(new Error(`HeadTTS worker connect timed out for device '${device}'.`));
+      reject(new Error("HeadTTS worker connect timed out."));
     }, 180_000);
 
     const worker = new Worker(workerPath);
@@ -271,7 +302,7 @@ async function connectWorkerForDevice(device: HeadTtsDevice): Promise<void> {
 
     worker.postMessage({
       type: "connect",
-      data: makeConnectData(device),
+      data: makeConnectData(),
     });
   });
 }
@@ -284,45 +315,35 @@ async function ensureWorkerReady(): Promise<void> {
     return;
   }
 
-  const devices = parseDevicePriority();
   const readyPromise = (async () => {
-    let lastError: Error | null = null;
-
-    debugLog("initializing worker with device priority", {
-      devices,
-      pendingRequests: state.pending.size,
-    });
-
-    for (const device of devices) {
-      state.ready = false;
-      state.device = null;
-
-      try {
-        await connectWorkerForDevice(device);
-        return;
-      } catch (error) {
-        const rawError = error instanceof Error ? error : new Error(String(error));
-        lastError = new Error(withRuntimeHint(rawError.message));
-        console.warn(`[HeadTTS] device '${device}' failed, trying next fallback`, {
-          error: lastError.message,
-        });
-
-        if (state.worker) {
-          try {
-            await state.worker.terminate();
-          } catch {
-            // ignore terminate errors
-          }
-          state.worker = null;
-        }
-      }
-    }
-
     state.ready = false;
     state.device = null;
-    throw new Error(
-      `Failed to initialize HeadTTS on any device (${devices.join(", ")}): ${lastError?.message ?? "unknown error"}`
-    );
+    debugLog("initializing worker", {
+      device: "cpu",
+      pendingRequests: state.pending.size,
+    });
+    try {
+      await connectWorker();
+      return;
+    } catch (error) {
+      const rawError = error instanceof Error ? error : new Error(String(error));
+      const hintedError = new Error(withRuntimeHint(rawError.message));
+      console.warn("[HeadTTS] worker init failed", {
+        device: "cpu",
+        error: hintedError.message,
+      });
+      if (state.worker) {
+        try {
+          await state.worker.terminate();
+        } catch {
+          // ignore terminate errors
+        }
+        state.worker = null;
+      }
+      state.ready = false;
+      state.device = null;
+      throw new Error(`Failed to initialize HeadTTS worker: ${hintedError.message}`);
+    }
   })();
 
   state.readyPromise = readyPromise;

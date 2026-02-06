@@ -9,6 +9,28 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
+  outputFileTracingIncludes: {
+    "/api/tts": [
+      "./node_modules/@met4citizen/headtts/modules/**/*",
+      "./node_modules/@met4citizen/headtts/dictionaries/**/*",
+      "./node_modules/@huggingface/transformers/dist/**/*",
+      "./node_modules/onnxruntime-node/dist/**/*",
+      "./node_modules/onnxruntime-node/lib/**/*",
+      "./node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
+      "./public/headtts/dictionaries/**/*",
+      "./public/headtts/voices/**/*",
+    ],
+    "/api/tts/route": [
+      "./node_modules/@met4citizen/headtts/modules/**/*",
+      "./node_modules/@met4citizen/headtts/dictionaries/**/*",
+      "./node_modules/@huggingface/transformers/dist/**/*",
+      "./node_modules/onnxruntime-node/dist/**/*",
+      "./node_modules/onnxruntime-node/lib/**/*",
+      "./node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
+      "./public/headtts/dictionaries/**/*",
+      "./public/headtts/voices/**/*",
+    ],
+  },
   async headers() {
     return [
       {

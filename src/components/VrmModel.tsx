@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRM } from "@pixiv/three-vrm";
@@ -8,6 +8,12 @@ import * as THREE from "three";
 import { useAppStore } from "@/stores/app-store";
 import { useLipSync } from "@/hooks/useLipSync";
 import { lipSyncPrefix } from "@/lib/viseme-mapping";
+
+type VrmModelProps = {
+  onLoadStart?: () => void;
+  onLoaded?: () => void;
+  onLoadError?: () => void;
+};
 
 /** Apply a natural resting arm pose on normalized bones (must be called before vrm.update). */
 function applyRelaxedArmsPose(vrm: VRM) {
@@ -25,11 +31,10 @@ function applyRelaxedArmsPose(vrm: VRM) {
   if (rLower) rLower.rotation.z = 0.1;
 }
 
-export function VrmModel() {
+export function VrmModel({ onLoadStart, onLoaded, onLoadError }: VrmModelProps) {
   const { scene } = useThree();
   const vrmRef = useRef<VRM | null>(null);
   const currentAvatar = useAppStore((s) => s.currentAvatar);
-  const [, setLoaded] = useState(false);
   const blinkTimerRef = useRef(0);
   const blinkStateRef = useRef(0); // 0=open, 1=closing, 2=opening
   const lipSyncRef = useLipSync();
@@ -37,12 +42,13 @@ export function VrmModel() {
   useEffect(() => {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
+    useAppStore.getState().setModelLoaded(false);
+    onLoadStart?.();
 
     // Clean up previous VRM
     if (vrmRef.current) {
       scene.remove(vrmRef.current.scene);
       vrmRef.current = null;
-      setLoaded(false);
     }
 
     loader.load(
@@ -56,12 +62,14 @@ export function VrmModel() {
 
         scene.add(vrm.scene);
         vrmRef.current = vrm;
-        setLoaded(true);
         useAppStore.getState().setModelLoaded(true);
+        onLoaded?.();
       },
       undefined,
       (error) => {
         console.error("Failed to load VRM:", error);
+        useAppStore.getState().setModelLoaded(false);
+        onLoadError?.();
         useAppStore.getState().setError("Failed to load avatar model");
       }
     );
@@ -71,8 +79,10 @@ export function VrmModel() {
         scene.remove(vrmRef.current.scene);
         vrmRef.current = null;
       }
+      useAppStore.getState().setModelLoaded(false);
+      onLoadStart?.();
     };
-  }, [currentAvatar.vrmPath, scene]);
+  }, [currentAvatar.vrmPath, onLoadError, onLoaded, onLoadStart, scene]);
 
   useFrame((_, delta) => {
     const vrm = vrmRef.current;

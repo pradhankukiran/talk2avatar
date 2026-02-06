@@ -23,7 +23,7 @@ export async function getHeadTTS(
       const { HeadTTS } = await import("@met4citizen/headtts");
 
       headttsInstance = new HeadTTS({
-        endpoints: ["webgpu", "wasm"],
+        endpoints: ["wasm"],
         audioCtx: getSharedAudioContext(),
         workerModule: "/headtts/modules/worker-tts.mjs",
         transformersModule: "/headtts/transformers/transformers.min.js",

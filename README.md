@@ -8,7 +8,7 @@ A web app where you speak to a 3D VRM avatar via microphone. The avatar responds
 
 1. **Node.js 20+** (Node 20 LTS recommended for the most stable native TTS runtime)
 2. **API key** for at least one LLM provider: [Groq](https://console.groq.com/), [Cerebras](https://cloud.cerebras.ai/), or [OpenRouter](https://openrouter.ai/)
-3. **Chrome or Edge** recommended (WebGPU support for fast TTS). Firefox works with WASM fallback.
+3. **Modern desktop browser** (for audio playback and microphone support)
 
 ## Getting Started
 
@@ -25,8 +25,7 @@ First run can take longer while the TTS worker initializes and loads voice model
 
 ## TTS Device & Debugging
 
-- `HEADTTS_DEVICE_PRIORITY=cpu` uses CPU backend (recommended for server-side Node runtime)
-- `HEADTTS_FORCE_WEBGPU=1` forces trying `webgpu` in Node (experimental; usually unsupported with current backend)
+- Server-side TTS runs on CPU via `/api/tts`
 - `HEADTTS_DEBUG=1` enables detailed server-side worker/device timing logs
 - `NEXT_PUBLIC_TTS_DEBUG=1` enables client pipeline and TTS timing logs in browser console
 

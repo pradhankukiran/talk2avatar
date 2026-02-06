@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { VrmModel } from "./VrmModel";
 import { useAppStore } from "@/stores/app-store";
 
 /** Sweeps the camera from behind the model to the front over ~2.5s, waits for model to load first. */
-function CameraReveal({ onComplete }: { onComplete: () => void }) {
+function CameraReveal({ modelReady, onComplete }: { modelReady: boolean; onComplete: () => void }) {
   const elapsed = useRef(0);
   const done = useRef(false);
 
@@ -15,8 +15,8 @@ function CameraReveal({ onComplete }: { onComplete: () => void }) {
     if (done.current) return;
 
     // Wait for model to be loaded before starting the sweep
-    const modelLoaded = useAppStore.getState().modelLoaded;
-    if (!modelLoaded) {
+    if (!modelReady) {
+      elapsed.current = 0;
       // Keep camera at starting position (back view) while waiting
       camera.position.set(0, 1.2, 1.8);
       camera.lookAt(0, 1.2, 0);
@@ -48,7 +48,17 @@ function CameraReveal({ onComplete }: { onComplete: () => void }) {
 }
 
 export function AvatarViewer() {
+  const avatarId = useAppStore((s) => s.currentAvatar.id);
+
+  return <AvatarViewerScene key={avatarId} avatarId={avatarId} />;
+}
+
+function AvatarViewerScene({ avatarId }: { avatarId: string }) {
   const [orbitEnabled, setOrbitEnabled] = useState(false);
+  const [modelReady, setModelReady] = useState(false);
+  const handleLoadStart = useCallback(() => setModelReady(false), []);
+  const handleLoaded = useCallback(() => setModelReady(true), []);
+  const handleLoadError = useCallback(() => setModelReady(false), []);
 
   return (
     <div className="relative h-full w-full">
@@ -61,7 +71,11 @@ export function AvatarViewer() {
         <directionalLight position={[2, 3, 2]} intensity={0.9} color="#fff8f0" />
         <directionalLight position={[-2, 2, -1]} intensity={0.4} color="#f0f0ff" />
         <hemisphereLight args={["#fef8f0", "#e8e4db", 0.3]} />
-        <VrmModel />
+        <VrmModel
+          onLoadStart={handleLoadStart}
+          onLoaded={handleLoaded}
+          onLoadError={handleLoadError}
+        />
         {orbitEnabled ? (
           <OrbitControls
             target={[0, 1.2, 0]}
@@ -72,7 +86,11 @@ export function AvatarViewer() {
             minPolarAngle={Math.PI / 4}
           />
         ) : (
-          <CameraReveal onComplete={() => setOrbitEnabled(true)} />
+          <CameraReveal
+            key={avatarId}
+            modelReady={modelReady}
+            onComplete={() => setOrbitEnabled(true)}
+          />
         )}
       </Canvas>
     </div>

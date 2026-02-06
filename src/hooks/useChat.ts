@@ -112,13 +112,17 @@ export function useChat() {
             });
           }
 
+          // Start synthesis immediately (parallel) — don't wait for previous sentences
+          const segmentPromise = synthesize(sentence);
+
+          // But enqueue audio in order so playback is sequential
           ttsChain = ttsChain.then(async () => {
             const segmentStart = performance.now();
             if (!startedSpeaking) {
               setPipelineStatus("speaking");
               startedSpeaking = true;
             }
-            const segment = await synthesize(sentence);
+            const segment = await segmentPromise;
             if (segment) {
               enqueuedAudio = true;
               await enqueueAudio(segment);

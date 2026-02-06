@@ -186,14 +186,7 @@ export function useTTS() {
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         serverTtsUnavailableRef.current = true;
-        if (isTtsDebugEnabled()) {
-          console.warn("[TTS client] synthesize failed, using browser fallback", {
-            textLength: text.length,
-            preview: previewText(text),
-            error: reason,
-            totalMs: Math.round(performance.now() - totalStart),
-          });
-        }
+        console.warn("[TTS] server TTS failed:", reason);
         const clientSegment = await synthesizeWithClientHeadTTS(text);
         if (clientSegment) {
           return clientSegment;

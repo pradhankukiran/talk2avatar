@@ -55,10 +55,7 @@ export async function POST(req: Request) {
       pendingRequests: runtime.pendingRequests,
       error: message,
     });
-    const payload: { error: string; details?: string } = { error: "TTS synthesis failed." };
-    if (debugEnabled) {
-      payload.details = message;
-    }
+    const payload: { error: string; details: string } = { error: "TTS synthesis failed.", details: message };
     return NextResponse.json(
       payload,
       { status: 503 }

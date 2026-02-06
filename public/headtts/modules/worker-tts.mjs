@@ -115,8 +115,9 @@ async function connect() {
   try {
     ({ StyleTextToSpeech2Model, AutoTokenizer, Tensor } = await import(settings.transformersModule));
   } catch(error) {
+    const msg = error && error.message ? error.message : String(error);
     console.error("HeadTTS Worker: Importing modules failed, error=", error);
-    throw new Error("Importing modules failed.");
+    throw new Error("Importing modules failed: " + msg);
   }
 
   if ( isTraceConnection ) {

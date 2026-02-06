@@ -10,17 +10,9 @@ const ttsTracingIncludes = [
   "./node_modules/@met4citizen/headtts/dictionaries/**/*",
   // Transformers (webpack-bundled, externals resolved at runtime)
   "./node_modules/@huggingface/transformers/dist/**/*",
-  // ONNX Runtime — node bindings + shared libraries
+  // ONNX Runtime — package.json + entry points + native bindings
   "./node_modules/onnxruntime-common/**/*",
-  "./node_modules/onnxruntime-node/dist/**/*",
-  "./node_modules/onnxruntime-node/lib/**/*",
-  "./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/onnxruntime_binding.node",
-  "./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime.so.1",
-  "./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime.so.1.21.0",
-  "./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_shared.so",
-  "./node_modules/onnxruntime-node/bin/napi-v3/linux/arm64/onnxruntime_binding.node",
-  "./node_modules/onnxruntime-node/bin/napi-v3/linux/arm64/libonnxruntime.so.1",
-  "./node_modules/onnxruntime-node/bin/napi-v3/linux/arm64/libonnxruntime.so.1.21.0",
+  "./node_modules/onnxruntime-node/**/*",
   // Sharp — static ESM import in transformers.node.mjs (+ transitive deps)
   "./node_modules/sharp/**/*",
   "./node_modules/@img/sharp-linux-x64/**/*",

@@ -5,6 +5,18 @@ import { getSharedAudioContext } from "@/lib/audio-context";
 import { useAppStore } from "@/stores/app-store";
 import type { AudioSegment, OculusViseme } from "@/types";
 
+function isTtsDebugEnabled(): boolean {
+  if (process.env.NEXT_PUBLIC_TTS_DEBUG === "1") return true;
+  if (process.env.NEXT_PUBLIC_TTS_DEBUG === "0") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
+function previewText(text: string, max = 80): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max)}…`;
+}
+
 export function useTTS() {
   const initializingRef = useRef(false);
   const setTtsReady = useAppStore((s) => s.setTtsReady);
@@ -57,15 +69,23 @@ export function useTTS() {
 
   const synthesize = useCallback(
     async (text: string): Promise<AudioSegment | null> => {
+      const totalStart = performance.now();
       try {
+        const networkStart = performance.now();
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text }),
         });
+        const networkMs = Math.round(performance.now() - networkStart);
 
         if (!res.ok) {
-          throw new Error(`TTS HTTP ${res.status}`);
+          const errorData = (await res.json().catch(() => ({}))) as {
+            error?: string;
+            details?: string;
+          };
+          const reason = [errorData.error, errorData.details].filter(Boolean).join(" | ");
+          throw new Error(reason || `TTS HTTP ${res.status}`);
         }
 
         const data = (await res.json()) as {
@@ -73,13 +93,32 @@ export function useTTS() {
           visemes?: string[];
           vtimes?: number[];
           vdurations?: number[];
+          ttsDevice?: string | null;
+          elapsedMs?: number;
         };
 
         if (!data.audioBase64) {
           throw new Error("TTS response missing audio");
         }
 
+        const decodeStart = performance.now();
         const audio = await decodeBase64Audio(data.audioBase64);
+        const decodeMs = Math.round(performance.now() - decodeStart);
+        const totalMs = Math.round(performance.now() - totalStart);
+
+        if (isTtsDebugEnabled()) {
+          console.debug("[TTS client] synthesize success", {
+            textLength: text.length,
+            preview: previewText(text),
+            networkMs,
+            decodeMs,
+            totalMs,
+            apiElapsedMs: data.elapsedMs ?? null,
+            device: data.ttsDevice ?? "unknown",
+            visemeCount: data.visemes?.length ?? 0,
+          });
+        }
+
         return {
           audio,
           visemes: (data.visemes ?? []) as OculusViseme[],
@@ -87,6 +126,15 @@ export function useTTS() {
           vdurations: (data.vdurations ?? []) as number[],
         };
       } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        if (isTtsDebugEnabled()) {
+          console.warn("[TTS client] synthesize failed, using browser fallback", {
+            textLength: text.length,
+            preview: previewText(text),
+            error: reason,
+            totalMs: Math.round(performance.now() - totalStart),
+          });
+        }
         const spoke = await speakWithBrowserTTS(text);
         if (!spoke) {
           console.error("TTS synthesize failed and fallback failed:", err);

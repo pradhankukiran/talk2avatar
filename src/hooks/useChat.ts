@@ -11,6 +11,18 @@ import {
 } from "@/hooks/useLipSync";
 import type { ChatMessage } from "@/types";
 
+function isPipelineDebugEnabled(): boolean {
+  if (process.env.NEXT_PUBLIC_TTS_DEBUG === "1") return true;
+  if (process.env.NEXT_PUBLIC_TTS_DEBUG === "0") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
+function previewText(text: string, max = 80): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max)}…`;
+}
+
 function makeId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -88,9 +100,20 @@ export function useChat() {
         let startedSpeaking = false;
         let enqueuedAudio = false;
         let ttsChain = Promise.resolve();
+        let sentenceIndex = 0;
 
         const splitter = new SentenceSplitter(async (sentence) => {
+          const segmentId = sentenceIndex++;
+          if (isPipelineDebugEnabled()) {
+            console.debug("[Chat pipeline] sentence queued for TTS", {
+              segmentId,
+              length: sentence.length,
+              preview: previewText(sentence),
+            });
+          }
+
           ttsChain = ttsChain.then(async () => {
+            const segmentStart = performance.now();
             if (!startedSpeaking) {
               setPipelineStatus("speaking");
               startedSpeaking = true;
@@ -99,6 +122,14 @@ export function useChat() {
             if (segment) {
               enqueuedAudio = true;
               await enqueueAudio(segment);
+            }
+            if (isPipelineDebugEnabled()) {
+              console.debug("[Chat pipeline] sentence TTS completed", {
+                segmentId,
+                enqueuedAudio: segment !== null,
+                elapsedMs: Math.round(performance.now() - segmentStart),
+                preview: previewText(sentence),
+              });
             }
           });
         });

@@ -63,6 +63,13 @@ export function VrmModel({ onLoadStart, onLoaded, onLoadError }: VrmModelProps) 
         scene.add(vrm.scene);
         vrmRef.current = vrm;
         useAppStore.getState().setModelLoaded(true);
+
+        // Debug: log available VRM expressions
+        const exprNames = vrm.expressionManager?.expressions?.map(
+          (e) => e.expressionName
+        );
+        console.debug("[VRM] loaded, expressions:", exprNames);
+
         onLoaded?.();
       },
       undefined,
@@ -84,78 +91,95 @@ export function VrmModel({ onLoadStart, onLoaded, onLoadError }: VrmModelProps) 
     };
   }, [currentAvatar.vrmPath, onLoadError, onLoaded, onLoadStart, scene]);
 
+  const lipSyncVerifiedRef = useRef(false);
+
   useFrame((_, delta) => {
     const vrm = vrmRef.current;
     if (!vrm) return;
 
-    // Apply arm pose on normalized bones before vrm.update() transfers them
+    // Apply arm pose on normalized bones before vrm.update()
     applyRelaxedArmsPose(vrm);
 
-    vrm.update(delta);
-
     const expr = vrm.expressionManager;
-    if (!expr) return;
 
-    // --- Idle blink animation ---
-    blinkTimerRef.current -= delta;
-    if (blinkStateRef.current === 0 && blinkTimerRef.current <= 0) {
-      blinkStateRef.current = 1;
-      blinkTimerRef.current = 0.1; // blink close duration
-    } else if (blinkStateRef.current === 1) {
-      const blinkVal = expr.getValue("blink") ?? 0;
-      const newVal = THREE.MathUtils.lerp(blinkVal, 1, 0.4);
-      expr.setValue("blink", newVal);
-      if (blinkTimerRef.current <= 0) {
-        blinkStateRef.current = 2;
-        blinkTimerRef.current = 0.1;
+    if (expr) {
+      // --- Idle blink animation ---
+      blinkTimerRef.current -= delta;
+      if (blinkStateRef.current === 0 && blinkTimerRef.current <= 0) {
+        blinkStateRef.current = 1;
+        blinkTimerRef.current = 0.1; // blink close duration
+      } else if (blinkStateRef.current === 1) {
+        const blinkVal = expr.getValue("blink") ?? 0;
+        const newVal = THREE.MathUtils.lerp(blinkVal, 1, 0.4);
+        expr.setValue("blink", newVal);
+        if (blinkTimerRef.current <= 0) {
+          blinkStateRef.current = 2;
+          blinkTimerRef.current = 0.1;
+        }
+      } else if (blinkStateRef.current === 2) {
+        const blinkVal = expr.getValue("blink") ?? 0;
+        const newVal = THREE.MathUtils.lerp(blinkVal, 0, 0.4);
+        expr.setValue("blink", newVal);
+        if (blinkTimerRef.current <= 0) {
+          blinkStateRef.current = 0;
+          blinkTimerRef.current = 2 + Math.random() * 4; // next blink in 2-6s
+          expr.setValue("blink", 0);
+        }
       }
-    } else if (blinkStateRef.current === 2) {
-      const blinkVal = expr.getValue("blink") ?? 0;
-      const newVal = THREE.MathUtils.lerp(blinkVal, 0, 0.4);
-      expr.setValue("blink", newVal);
-      if (blinkTimerRef.current <= 0) {
-        blinkStateRef.current = 0;
-        blinkTimerRef.current = 2 + Math.random() * 4; // next blink in 2-6s
-        expr.setValue("blink", 0);
-      }
-    }
 
-    // --- Lip sync: apply viseme weights via VRM expression manager ---
-    const avatarType = useAppStore.getState().currentAvatar.type;
-    const lipSyncWeights = lipSyncRef.current;
+      // --- Lip sync: apply viseme weights via VRM expression manager ---
+      const avatarType = useAppStore.getState().currentAvatar.type;
+      const lipSyncWeights = lipSyncRef.current;
 
-    if (avatarType === "vroid") {
-      // VRM models: use expressionManager (aa, ih, ou, ee, oh)
-      for (const exprName of vrmLipExpressions) {
-        const target = lipSyncWeights[exprName] ?? 0;
-        const current = expr.getValue(exprName) ?? 0;
-        expr.setValue(exprName, THREE.MathUtils.lerp(current, target, 0.5));
-      }
-    } else {
-      // RPM models: direct morph target manipulation (viseme_XX)
-      const prefix = lipSyncPrefix[avatarType];
-      vrm.scene.traverse((obj) => {
-        if (!(obj instanceof THREE.Mesh) || !obj.morphTargetDictionary || !obj.morphTargetInfluences) return;
-        const dict = obj.morphTargetDictionary;
-        const influences = obj.morphTargetInfluences;
-
-        for (const [name, targetWeight] of Object.entries(lipSyncWeights)) {
-          if (name in dict) {
-            const idx = dict[name];
-            const current = influences[idx] ?? 0;
-            influences[idx] = THREE.MathUtils.lerp(current, targetWeight, 0.5);
+      if (avatarType === "vroid") {
+        // One-time verification that lip expressions exist
+        if (!lipSyncVerifiedRef.current) {
+          lipSyncVerifiedRef.current = true;
+          const missing = vrmLipExpressions.filter(
+            (n) => expr.getValue(n) === null
+          );
+          if (missing.length > 0) {
+            console.error("[VRM] Missing lip expressions:", missing);
+          } else {
+            console.debug("[VRM] All lip expressions verified:", [...vrmLipExpressions]);
           }
         }
 
-        for (const key of Object.keys(dict)) {
-          if (key.startsWith(prefix) && !(key in lipSyncWeights)) {
-            const idx = dict[key];
-            const current = influences[idx] ?? 0;
-            influences[idx] = THREE.MathUtils.lerp(current, 0, 0.5);
-          }
+        // VRM models: use expressionManager (aa, ih, ou, ee, oh)
+        for (const exprName of vrmLipExpressions) {
+          const target = lipSyncWeights[exprName] ?? 0;
+          const current = expr.getValue(exprName) ?? 0;
+          expr.setValue(exprName, THREE.MathUtils.lerp(current, target, 0.5));
         }
-      });
+      } else {
+        // RPM models: direct morph target manipulation (viseme_XX)
+        const prefix = lipSyncPrefix[avatarType];
+        vrm.scene.traverse((obj) => {
+          if (!(obj instanceof THREE.Mesh) || !obj.morphTargetDictionary || !obj.morphTargetInfluences) return;
+          const dict = obj.morphTargetDictionary;
+          const influences = obj.morphTargetInfluences;
+
+          for (const [name, targetWeight] of Object.entries(lipSyncWeights)) {
+            if (name in dict) {
+              const idx = dict[name];
+              const current = influences[idx] ?? 0;
+              influences[idx] = THREE.MathUtils.lerp(current, targetWeight, 0.5);
+            }
+          }
+
+          for (const key of Object.keys(dict)) {
+            if (key.startsWith(prefix) && !(key in lipSyncWeights)) {
+              const idx = dict[key];
+              const current = influences[idx] ?? 0;
+              influences[idx] = THREE.MathUtils.lerp(current, 0, 0.5);
+            }
+          }
+        });
+      }
     }
+
+    // Apply all VRM systems (humanoid, expressions → morph targets, spring bones)
+    vrm.update(delta);
   });
 
   return null;

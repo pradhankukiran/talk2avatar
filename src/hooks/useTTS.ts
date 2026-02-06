@@ -198,6 +198,7 @@ export function useTTS() {
         if (clientSegment) {
           return clientSegment;
         }
+        console.warn("[TTS] All TTS engines failed — falling back to browser speech (no lip sync)");
         const spoke = await speakWithBrowserTTS(text);
         if (!spoke) {
           console.error("TTS synthesize failed and fallback failed:", err);

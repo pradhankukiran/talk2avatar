@@ -58,6 +58,8 @@ export function useLipSync(): React.MutableRefObject<VisemeWeights> {
     []
   );
 
+  const lastLogRef = useRef(0);
+
   useFrame(() => {
     if (!sharedAudioQueue) {
       weightsRef.current = {};
@@ -66,6 +68,15 @@ export function useLipSync(): React.MutableRefObject<VisemeWeights> {
 
     const viseme = sharedAudioQueue.getCurrentViseme();
     weightsRef.current = getVisemeWeights(viseme, getAvatarType());
+
+    // Debug: log non-silent visemes (throttled to 1/sec)
+    if (viseme !== "sil") {
+      const now = Date.now();
+      if (now - lastLogRef.current > 1000) {
+        lastLogRef.current = now;
+        console.debug("[LipSync] viseme:", viseme, "weights:", weightsRef.current);
+      }
+    }
   });
 
   return weightsRef;

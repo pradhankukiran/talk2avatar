@@ -19,6 +19,16 @@ export class AudioQueue {
   }
 
   enqueue(segment: AudioSegment) {
+    if (segment.visemes.length === 0) {
+      console.warn("[AudioQueue] enqueue: segment has NO visemes — lip sync will be silent");
+    }
+    console.log("[AudioQueue] enqueue", {
+      visemeCount: segment.visemes.length,
+      duration: segment.audio.duration.toFixed(2) + "s",
+      firstVisemes: segment.visemes.slice(0, 5),
+      firstVtimes: segment.vtimes.slice(0, 5),
+      audioCtxState: this.audioCtx.state,
+    });
     this.queue.push(segment);
     if (!this.playing) {
       this.playNext();
@@ -91,5 +101,10 @@ export class AudioQueue {
     this.sourceNode = source;
     this.startTime = this.audioCtx.currentTime;
     source.start();
+    console.log("[AudioQueue] playNext: started", {
+      startTime: this.startTime.toFixed(3),
+      audioCtxState: this.audioCtx.state,
+      visemeCount: this.currentSegment.visemes.length,
+    });
   }
 }

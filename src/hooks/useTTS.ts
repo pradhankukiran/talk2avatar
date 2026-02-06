@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { getSharedAudioContext } from "@/lib/audio-context";
 import { useAppStore } from "@/stores/app-store";
+import { getHeadTTS } from "@/lib/headtts-client";
 import type { AudioSegment, OculusViseme } from "@/types";
 
 function isTtsDebugEnabled(): boolean {
@@ -19,7 +20,9 @@ function previewText(text: string, max = 80): string {
 
 export function useTTS() {
   const initializingRef = useRef(false);
+  const serverTtsUnavailableRef = useRef(false);
   const setTtsReady = useAppStore((s) => s.setTtsReady);
+  const setTtsProgress = useAppStore((s) => s.setTtsProgress);
   const setError = useAppStore((s) => s.setError);
 
   const canUseBrowserSpeech = useCallback((): boolean => {
@@ -67,9 +70,64 @@ export function useTTS() {
     }
   }, [setTtsReady]);
 
+  const synthesizeWithClientHeadTTS = useCallback(
+    async (text: string): Promise<AudioSegment | null> => {
+      try {
+        const headtts = await getHeadTTS((progress) => setTtsProgress(progress));
+        const messages = await headtts.synthesize({ input: text });
+        const audioMessage = messages.find(
+          (message: { type?: string; data?: { audio?: AudioBuffer } }) =>
+            message?.type === "audio" && message?.data?.audio
+        ) as
+          | {
+              data?: {
+                audio?: AudioBuffer;
+                visemes?: string[];
+                vtimes?: number[];
+                vdurations?: number[];
+              };
+            }
+          | undefined;
+
+        if (!audioMessage?.data?.audio) {
+          throw new Error("Client HeadTTS response missing audio");
+        }
+
+        if (isTtsDebugEnabled()) {
+          console.debug("[TTS client] client-side HeadTTS success", {
+            textLength: text.length,
+            preview: previewText(text),
+            visemeCount: audioMessage.data.visemes?.length ?? 0,
+          });
+        }
+
+        return {
+          audio: audioMessage.data.audio,
+          visemes: (audioMessage.data.visemes ?? []) as OculusViseme[],
+          vtimes: (audioMessage.data.vtimes ?? []) as number[],
+          vdurations: (audioMessage.data.vdurations ?? []) as number[],
+        };
+      } catch (err) {
+        if (isTtsDebugEnabled()) {
+          console.warn("[TTS client] client-side HeadTTS failed", {
+            textLength: text.length,
+            preview: previewText(text),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        return null;
+      }
+    },
+    [setTtsProgress]
+  );
+
   const synthesize = useCallback(
     async (text: string): Promise<AudioSegment | null> => {
       const totalStart = performance.now();
+      if (serverTtsUnavailableRef.current) {
+        const clientSegment = await synthesizeWithClientHeadTTS(text);
+        if (clientSegment) return clientSegment;
+      }
       try {
         const networkStart = performance.now();
         const res = await fetch("/api/tts", {
@@ -127,6 +185,7 @@ export function useTTS() {
         };
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
+        serverTtsUnavailableRef.current = true;
         if (isTtsDebugEnabled()) {
           console.warn("[TTS client] synthesize failed, using browser fallback", {
             textLength: text.length,
@@ -134,6 +193,10 @@ export function useTTS() {
             error: reason,
             totalMs: Math.round(performance.now() - totalStart),
           });
+        }
+        const clientSegment = await synthesizeWithClientHeadTTS(text);
+        if (clientSegment) {
+          return clientSegment;
         }
         const spoke = await speakWithBrowserTTS(text);
         if (!spoke) {
@@ -143,7 +206,7 @@ export function useTTS() {
         return null;
       }
     },
-    [decodeBase64Audio, speakWithBrowserTTS, setError]
+    [decodeBase64Audio, speakWithBrowserTTS, setError, synthesizeWithClientHeadTTS]
   );
 
   return { initialize, synthesize };

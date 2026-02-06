@@ -7,7 +7,7 @@ import { VRMLoaderPlugin, VRM } from "@pixiv/three-vrm";
 import * as THREE from "three";
 import { useAppStore } from "@/stores/app-store";
 import { useLipSync } from "@/hooks/useLipSync";
-import { lipSyncPrefix } from "@/lib/viseme-mapping";
+import { lipSyncPrefix, vrmLipExpressions } from "@/lib/viseme-mapping";
 
 type VrmModelProps = {
   onLoadStart?: () => void;
@@ -120,34 +120,42 @@ export function VrmModel({ onLoadStart, onLoaded, onLoadError }: VrmModelProps) 
       }
     }
 
-    // --- Lip sync: apply viseme morph target weights with lerp ---
+    // --- Lip sync: apply viseme weights via VRM expression manager ---
     const avatarType = useAppStore.getState().currentAvatar.type;
     const lipSyncWeights = lipSyncRef.current;
-    const prefix = lipSyncPrefix[avatarType];
 
-    vrm.scene.traverse((obj) => {
-      if (!(obj instanceof THREE.Mesh) || !obj.morphTargetDictionary || !obj.morphTargetInfluences) return;
-      const dict = obj.morphTargetDictionary;
-      const influences = obj.morphTargetInfluences;
-
-      // Apply active viseme weights
-      for (const [name, targetWeight] of Object.entries(lipSyncWeights)) {
-        if (name in dict) {
-          const idx = dict[name];
-          const current = influences[idx] ?? 0;
-          influences[idx] = THREE.MathUtils.lerp(current, targetWeight, 0.5);
-        }
+    if (avatarType === "vroid") {
+      // VRM models: use expressionManager (aa, ih, ou, ee, oh)
+      for (const exprName of vrmLipExpressions) {
+        const target = lipSyncWeights[exprName] ?? 0;
+        const current = expr.getValue(exprName) ?? 0;
+        expr.setValue(exprName, THREE.MathUtils.lerp(current, target, 0.5));
       }
+    } else {
+      // RPM models: direct morph target manipulation (viseme_XX)
+      const prefix = lipSyncPrefix[avatarType];
+      vrm.scene.traverse((obj) => {
+        if (!(obj instanceof THREE.Mesh) || !obj.morphTargetDictionary || !obj.morphTargetInfluences) return;
+        const dict = obj.morphTargetDictionary;
+        const influences = obj.morphTargetInfluences;
 
-      // Reset lip-sync morph targets not in current weights to 0
-      for (const key of Object.keys(dict)) {
-        if (key.startsWith(prefix) && !(key in lipSyncWeights)) {
-          const idx = dict[key];
-          const current = influences[idx] ?? 0;
-          influences[idx] = THREE.MathUtils.lerp(current, 0, 0.5);
+        for (const [name, targetWeight] of Object.entries(lipSyncWeights)) {
+          if (name in dict) {
+            const idx = dict[name];
+            const current = influences[idx] ?? 0;
+            influences[idx] = THREE.MathUtils.lerp(current, targetWeight, 0.5);
+          }
         }
-      }
-    });
+
+        for (const key of Object.keys(dict)) {
+          if (key.startsWith(prefix) && !(key in lipSyncWeights)) {
+            const idx = dict[key];
+            const current = influences[idx] ?? 0;
+            influences[idx] = THREE.MathUtils.lerp(current, 0, 0.5);
+          }
+        }
+      });
+    }
   });
 
   return null;

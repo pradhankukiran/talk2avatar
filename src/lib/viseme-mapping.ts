@@ -24,26 +24,30 @@ const rpmVisemeMap: Record<OculusViseme, VisemeWeights> = {
 };
 
 /**
- * For VRoid avatars: map Oculus visemes to weighted combinations
- * of lip_a / lip_i / lip_u / lip_e / lip_o morph targets.
+ * For VRoid / VRM avatars: map Oculus visemes to weighted combinations
+ * of VRM expression names (aa, ih, ou, ee, oh).
+ * These are applied via vrm.expressionManager.setValue(), not direct morph targets.
  */
 const vroidVisemeMap: Record<OculusViseme, VisemeWeights> = {
   sil: {},
-  PP: { lip_u: 0.6, lip_a: 0.1 },
-  FF: { lip_i: 0.6, lip_a: 0.1 },
-  TH: { lip_i: 0.4, lip_o: 0.4 },
-  DD: { lip_a: 0.6, lip_i: 0.3 },
-  kk: { lip_a: 0.4, lip_i: 0.5 },
-  CH: { lip_i: 0.8, lip_e: 0.3 },
-  SS: { lip_i: 0.7, lip_e: 0.4 },
-  nn: { lip_a: 0.4, lip_i: 0.3 },
-  RR: { lip_o: 0.5, lip_a: 0.4 },
-  aa: { lip_a: 1.0 },
-  E: { lip_e: 1.0, lip_i: 0.3 },
-  I: { lip_i: 1.0, lip_e: 0.3 },
-  O: { lip_o: 1.0 },
-  U: { lip_u: 1.0 },
+  PP: { ou: 0.6, aa: 0.1 },
+  FF: { ih: 0.6, aa: 0.1 },
+  TH: { ih: 0.4, oh: 0.4 },
+  DD: { aa: 0.6, ih: 0.3 },
+  kk: { aa: 0.4, ih: 0.5 },
+  CH: { ih: 0.8, ee: 0.3 },
+  SS: { ih: 0.7, ee: 0.4 },
+  nn: { aa: 0.4, ih: 0.3 },
+  RR: { oh: 0.5, aa: 0.4 },
+  aa: { aa: 1.0 },
+  E: { ee: 1.0, ih: 0.3 },
+  I: { ih: 1.0, ee: 0.3 },
+  O: { oh: 1.0 },
+  U: { ou: 1.0 },
 };
+
+/** VRM expression names used for lip sync. */
+export const vrmLipExpressions = ["aa", "ih", "ou", "ee", "oh"] as const;
 
 /** Morph target prefixes used for lip sync, per avatar type. */
 export const lipSyncPrefix: Record<"rpm" | "vroid", string> = {

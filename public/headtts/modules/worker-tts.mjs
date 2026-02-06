@@ -157,8 +157,9 @@ async function connect() {
     model = results[0];
     tokenizer = results[1];
   } catch(error) {
+    const msg = error && error.message ? error.message : String(error);
     console.error("HeadTTS Worker: Loading models failed, error=", error, " settings=", settings);
-    throw new Error("Loading models failed.");
+    throw new Error("Loading models failed: " + msg);
   }
 
   // Ready

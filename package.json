@@ -1,23 +1,32 @@
 {
-  "name": "vrm-chat",
+  "name": "talk2avatar",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.27",
+    "@met4citizen/headtts": "^1.2.0",
+    "@pixiv/three-vrm": "^3.4.5",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "ai": "^6.0.73",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "three": "^0.182.0",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.182.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",

@@ -1,26 +1,152 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core palette — warm, luminous enterprise */
+  --background: #f8f6f1;
+  --foreground: #1e1e1e;
+  --surface: #ffffff;
+  --surface-raised: #fefdfb;
+  --surface-muted: #f2efe8;
+  --border: #e4e0d8;
+  --border-subtle: #ece9e1;
+
+  /* Text hierarchy */
+  --text-primary: #1a1a1a;
+  --text-secondary: #5c5a56;
+  --text-tertiary: #908d85;
+  --text-inverse: #ffffff;
+
+  /* Accent — sophisticated teal */
+  --accent: #0d7c66;
+  --accent-hover: #0a6653;
+  --accent-light: #e6f5f0;
+  --accent-muted: #d1ede5;
+
+  /* Warm accent — amber for highlights */
+  --warm: #c4840d;
+  --warm-light: #fef5e4;
+
+  /* Status colors */
+  --success: #2a9d6e;
+  --warning: #d9910a;
+  --danger: #c4362e;
+  --info: #2b7bc0;
+
+  /* Depth */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.1);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-dm-sans);
+  --font-body: var(--font-source-sans);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), "Source Sans 3", system-ui, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Refined scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Custom keyframes */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out forwards;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--border) 25%, var(--surface-muted) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* Glass panel effect */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Three.js canvas light background */
+.avatar-canvas-wrapper {
+  background: linear-gradient(160deg, #f5f2ec 0%, #ebe7de 40%, #e8e4db 100%);
 }

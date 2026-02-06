@@ -170,6 +170,25 @@ function makeConnectData() {
   const pkgRoot = resolveHeadTtsPackageRoot();
   const dictionaryPath = resolveDictionaryPath(pkgRoot);
   const transformersModule = resolveTransformersModule();
+  const voicePath = path.join(process.cwd(), "public", "headtts", "voices");
+  const workerPath = getWorkerPath();
+
+  debugLog("runtime context", {
+    node: process.versions.node,
+    platform: process.platform,
+    arch: process.arch,
+    cwd: process.cwd(),
+    pid: process.pid,
+  });
+  debugLog("resolved paths", {
+    workerPath,
+    workerExists: fs.existsSync(workerPath),
+    dictionaryPath,
+    dictionaryExists: fs.existsSync(path.join(dictionaryPath, "en-us.txt")),
+    transformersModule,
+    voicePath,
+    voiceExists: fs.existsSync(path.join(voicePath, "af_bella.bin")),
+  });
 
   return {
     transformersModule,
@@ -181,7 +200,7 @@ function makeConnectData() {
     audioSampleRate: 24000,
     languages: ["en-us"],
     dictionaryPath,
-    voicePath: path.join(process.cwd(), "public", "headtts", "voices"),
+    voicePath,
     voices: ["af_bella"],
     deltaStart: -10,
     deltaEnd: 10,
@@ -215,16 +234,35 @@ function getWorkerPath(): string {
   );
 }
 
+function getOnnxRuntimeCandidates() {
+  const base = path.join(process.cwd(), "node_modules", "onnxruntime-node", "bin", "napi-v3");
+  const archPath = process.arch === "arm64"
+    ? path.join(base, "linux", "arm64")
+    : path.join(base, "linux", "x64");
+
+  return {
+    binding: path.join(archPath, "onnxruntime_binding.node"),
+    coreLibV1: path.join(archPath, "libonnxruntime.so.1"),
+    coreLibVersioned: path.join(archPath, "libonnxruntime.so.1.21.0"),
+  };
+}
+
 async function connectWorker(): Promise<void> {
   const state = getState();
   const workerPath = getWorkerPath();
   const startedAt = Date.now();
   const device: HeadTtsDevice = "cpu";
+  const ort = getOnnxRuntimeCandidates();
 
   debugLog("connect attempt started", {
     device,
     workerPath,
     pid: process.pid,
+    platform: process.platform,
+    arch: process.arch,
+    onnxBinding: ort.binding,
+    onnxBindingExists: fs.existsSync(ort.binding),
+    onnxCoreExists: fs.existsSync(ort.coreLibV1) || fs.existsSync(ort.coreLibVersioned),
   });
 
   await new Promise<void>((resolve, reject) => {

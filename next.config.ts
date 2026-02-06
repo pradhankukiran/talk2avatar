@@ -21,6 +21,7 @@ const ttsTracingIncludes = [
   "./node_modules/detect-libc/**/*",
   "./node_modules/semver/**/*",
   // Public assets read by the worker at runtime
+  "./public/headtts/modules/**/*",
   "./public/headtts/dictionaries/**/*",
   "./public/headtts/voices/**/*",
 ];

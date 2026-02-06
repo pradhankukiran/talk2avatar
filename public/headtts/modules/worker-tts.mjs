@@ -113,7 +113,13 @@ async function connect() {
 
   // Load modules dynamically
   try {
-    ({ StyleTextToSpeech2Model, AutoTokenizer, Tensor } = await import(settings.transformersModule));
+    const transformersModule = await import(settings.transformersModule);
+    ({ StyleTextToSpeech2Model, AutoTokenizer, Tensor } = transformersModule);
+
+    // Redirect model cache to /tmp for read-only serverless environments (Vercel)
+    if (transformersModule.env && isNode) {
+      transformersModule.env.cacheDir = '/tmp/hf-cache';
+    }
   } catch(error) {
     const msg = error && error.message ? error.message : String(error);
     console.error("HeadTTS Worker: Importing modules failed, error=", error);

@@ -31,7 +31,7 @@ const SYSTEM_PROMPT = `You are a friendly, conversational AI assistant. Keep you
 const MAX_MESSAGES = 50;
 const MAX_CONTENT_LENGTH = 4000;
 
-function validateMessages(raw: unknown): { role: string; content: string }[] {
+function validateMessages(raw: unknown): { role: "user" | "assistant"; content: string }[] {
   if (!Array.isArray(raw)) {
     throw new Error("messages must be an array");
   }

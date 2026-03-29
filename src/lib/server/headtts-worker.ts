@@ -484,6 +484,7 @@ export async function synthesizeHeadTTS(text: string): Promise<HeadTtsAudioResul
       timeout,
     });
 
+    // HeadTTS worker receives `id` and echoes it back as `ref` in responses
     worker.postMessage({
       type: "synthesize",
       id,

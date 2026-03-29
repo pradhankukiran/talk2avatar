@@ -36,7 +36,12 @@ export function AvatarSelector() {
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.style.display = "none";
-              target.parentElement!.innerHTML = `<span class="flex items-center justify-center w-full h-full text-xs font-bold" style="background:var(--surface-muted);color:var(--text-secondary)">${avatar.name[0]}</span>`;
+              const fallback = document.createElement("span");
+              fallback.className = "flex items-center justify-center w-full h-full text-xs font-bold";
+              fallback.style.background = "var(--surface-muted)";
+              fallback.style.color = "var(--text-secondary)";
+              fallback.textContent = avatar.name[0];
+              target.parentElement!.appendChild(fallback);
             }}
           />
         </button>

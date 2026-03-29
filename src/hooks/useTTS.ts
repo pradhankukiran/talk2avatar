@@ -21,6 +21,7 @@ function previewText(text: string, max = 80): string {
 export function useTTS() {
   const initializingRef = useRef(false);
   const serverTtsUnavailableRef = useRef(false);
+  const serverTtsFailedAtRef = useRef(0);
   const setTtsReady = useAppStore((s) => s.setTtsReady);
   const setTtsProgress = useAppStore((s) => s.setTtsProgress);
   const setError = useAppStore((s) => s.setError);
@@ -124,10 +125,16 @@ export function useTTS() {
   const synthesize = useCallback(
     async (text: string): Promise<AudioSegment | null> => {
       const totalStart = performance.now();
-      if (serverTtsUnavailableRef.current) {
+      // Retry server TTS after 30s cooldown
+      const SERVER_RETRY_MS = 30_000;
+      if (
+        serverTtsUnavailableRef.current &&
+        Date.now() - serverTtsFailedAtRef.current < SERVER_RETRY_MS
+      ) {
         const clientSegment = await synthesizeWithClientHeadTTS(text);
         if (clientSegment) return clientSegment;
       }
+      serverTtsUnavailableRef.current = false;
       try {
         const networkStart = performance.now();
         const res = await fetch("/api/tts", {
@@ -186,6 +193,7 @@ export function useTTS() {
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         serverTtsUnavailableRef.current = true;
+        serverTtsFailedAtRef.current = Date.now();
         console.warn("[TTS] server TTS failed:", reason);
         const clientSegment = await synthesizeWithClientHeadTTS(text);
         if (clientSegment) {

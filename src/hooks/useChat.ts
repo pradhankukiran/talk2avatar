@@ -155,12 +155,9 @@ export function useChat() {
         splitter.finish();
         await ttsChain;
 
-        if (!startedSpeaking && fullContent.length > 0) {
-          setPipelineStatus("speaking");
-        }
-
-        // If we spoke via browser fallback (no queued audio), explicitly return to idle.
-        if (startedSpeaking && !enqueuedAudio) {
+        // If no audio was enqueued (all TTS failed, or browser fallback used),
+        // reset to idle — AudioQueue.onFinished won't fire in this case.
+        if (!enqueuedAudio) {
           setPipelineStatus("idle");
         }
       } catch (err) {

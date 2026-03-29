@@ -30,6 +30,7 @@ function makeId(): string {
 export function useChat() {
   const { initialize: initTTS, synthesize } = useTTS();
   const abortRef = useRef<AbortController | null>(null);
+  const generationIdRef = useRef(0);
 
   const addMessage = useAppStore((s) => s.addMessage);
   const updateLastAssistantMessage = useAppStore((s) => s.updateLastAssistantMessage);
@@ -50,10 +51,11 @@ export function useChat() {
         await initTTS();
       }
 
-      // Abort any in-flight request
+      // Abort any in-flight request and invalidate stale TTS callbacks
       abortRef.current?.abort();
       clearAudioQueue();
       abortRef.current = new AbortController();
+      const currentGeneration = ++generationIdRef.current;
 
       const userMessage: ChatMessage = {
         id: makeId(),
@@ -117,12 +119,15 @@ export function useChat() {
 
           // But enqueue audio in order so playback is sequential
           ttsChain = ttsChain.then(async () => {
+            // Discard results if a newer message has taken over
+            if (generationIdRef.current !== currentGeneration) return;
             const segmentStart = performance.now();
             if (!startedSpeaking) {
               setPipelineStatus("speaking");
               startedSpeaking = true;
             }
             const segment = await segmentPromise;
+            if (generationIdRef.current !== currentGeneration) return;
             if (segment) {
               enqueuedAudio = true;
               await enqueueAudio(segment);

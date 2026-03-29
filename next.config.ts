@@ -53,7 +53,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(.*)",
+        // COEP/COOP needed for SharedArrayBuffer (WASM TTS) on page routes.
+        // Scoped to non-API routes to avoid blocking third-party resources
+        // or cross-origin API consumers.
+        source: "/((?!api/).*)",
         headers: [
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },

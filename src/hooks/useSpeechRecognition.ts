@@ -18,6 +18,12 @@ export function useSpeechRecognition(
   const [isSupported, setIsSupported] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const onResultRef = useRef(onResult);
+
+  // Keep the callback ref up to date without re-running the effect
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
 
   useEffect(() => {
     const SpeechRecognition =
@@ -48,7 +54,7 @@ export function useSpeechRecognition(
         setTranscript(interimTranscript || finalTranscript);
 
         if (finalTranscript) {
-          onResult(finalTranscript.trim());
+          onResultRef.current(finalTranscript.trim());
           setTranscript("");
           setIsListening(false);
         }
@@ -64,7 +70,18 @@ export function useSpeechRecognition(
 
       recognitionRef.current = recognition;
     }
-  }, [onResult]);
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // ignore — already stopped
+        }
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {

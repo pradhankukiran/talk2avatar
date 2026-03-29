@@ -23,15 +23,15 @@ export async function POST(req: Request) {
     }
 
     const result = await synthesizeHeadTTS(text);
-    const runtime = getHeadTtsRuntimeInfo();
+    const runtimeInfo = getHeadTtsRuntimeInfo();
     const elapsedMs = Date.now() - startedAt;
 
-    if (process.env.HEADTTS_DEBUG === "1" || process.env.NODE_ENV !== "production") {
+    if (debugEnabled) {
       console.log("[TTS API] synthesis success", {
         elapsedMs,
         textLength: text.length,
-        device: runtime.device,
-        pendingRequests: runtime.pendingRequests,
+        device: runtimeInfo.device,
+        pendingRequests: runtimeInfo.pendingRequests,
         visemeCount: result.visemes.length,
       });
     }
@@ -41,18 +41,18 @@ export async function POST(req: Request) {
       visemes: result.visemes,
       vtimes: result.vtimes,
       vdurations: result.vdurations,
-      ttsDevice: runtime.device,
+      ttsDevice: runtimeInfo.device,
       elapsedMs,
     });
   } catch (error) {
-    const runtime = getHeadTtsRuntimeInfo();
+    const runtimeInfo = getHeadTtsRuntimeInfo();
     const elapsedMs = Date.now() - startedAt;
     const message = error instanceof Error ? error.message : String(error);
     console.error("TTS API error:", error);
     console.error("[TTS API] synthesis failure", {
       elapsedMs,
-      device: runtime.device,
-      pendingRequests: runtime.pendingRequests,
+      device: runtimeInfo.device,
+      pendingRequests: runtimeInfo.pendingRequests,
       error: message,
     });
     const payload: { error: string; details: string } = { error: "TTS synthesis failed.", details: message };

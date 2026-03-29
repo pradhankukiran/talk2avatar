@@ -87,7 +87,6 @@ export function VrmModel({ onLoadStart, onLoaded, onLoadError }: VrmModelProps) 
         vrmRef.current = null;
       }
       useAppStore.getState().setModelLoaded(false);
-      onLoadStart?.();
     };
   }, [currentAvatar.vrmPath, onLoadError, onLoaded, onLoadStart, scene]);
 
